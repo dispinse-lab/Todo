@@ -60,7 +60,6 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
-  const processedResultsRef = useRef<Set<number>>(new Set());
 
   const isSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
@@ -71,43 +70,27 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognitionAPI();
 
-    recognition.continuous = true;
+    // Modalità singola frase - più affidabile
+    recognition.continuous = false;
     recognition.interimResults = true;
     recognition.lang = 'it-IT';
 
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
-      processedResultsRef.current.clear();
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let currentInterim = '';
-      const newFinalParts: string[] = [];
+      // Prendi solo l'ultimo risultato
+      const lastResult = event.results[event.results.length - 1];
+      const text = lastResult[0].transcript;
 
-      for (let i = 0; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          // Solo aggiungi se non già processato
-          if (!processedResultsRef.current.has(i)) {
-            processedResultsRef.current.add(i);
-            newFinalParts.push(result[0].transcript);
-          }
-        } else {
-          currentInterim = result[0].transcript;
-        }
+      if (lastResult.isFinal) {
+        setTranscript(text);
+        setInterimTranscript('');
+      } else {
+        setInterimTranscript(text);
       }
-
-      if (newFinalParts.length > 0) {
-        setTranscript(prev => {
-          const newText = newFinalParts.join(' ').trim();
-          if (prev) {
-            return prev + ' ' + newText;
-          }
-          return newText;
-        });
-      }
-      setInterimTranscript(currentInterim);
     };
 
     recognition.onerror = (event) => {
@@ -121,6 +104,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
         case 'not-allowed':
           setError('Permesso microfono negato.');
           break;
+        case 'aborted':
+          // Ignorato - l'utente ha fermato
+          break;
         default:
           setError(`Errore: ${event.error}`);
       }
@@ -129,7 +115,6 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
 
     recognition.onend = () => {
       setIsListening(false);
-      setInterimTranscript('');
     };
 
     recognitionRef.current = recognition;
@@ -144,7 +129,6 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
       setTranscript('');
       setInterimTranscript('');
       setError(null);
-      processedResultsRef.current.clear();
       try {
         recognitionRef.current.start();
       } catch (e) {
@@ -162,7 +146,6 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
   const resetTranscript = useCallback(() => {
     setTranscript('');
     setInterimTranscript('');
-    processedResultsRef.current.clear();
   }, []);
 
   return {
