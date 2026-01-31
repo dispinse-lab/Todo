@@ -60,6 +60,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const processedResultsRef = useRef<Set<number>>(new Set());
 
   const isSupported = typeof window !== 'undefined' &&
     ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
@@ -77,23 +78,35 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
     recognition.onstart = () => {
       setIsListening(true);
       setError(null);
+      processedResultsRef.current.clear();
     };
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
-      let finalTranscript = '';
       let currentInterim = '';
+      const newFinalParts: string[] = [];
 
-      // Ricostruisci l'intero transcript da tutti i risultati
       for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
-          finalTranscript += result[0].transcript;
+          // Solo aggiungi se non già processato
+          if (!processedResultsRef.current.has(i)) {
+            processedResultsRef.current.add(i);
+            newFinalParts.push(result[0].transcript);
+          }
         } else {
-          currentInterim += result[0].transcript;
+          currentInterim = result[0].transcript;
         }
       }
 
-      setTranscript(finalTranscript);
+      if (newFinalParts.length > 0) {
+        setTranscript(prev => {
+          const newText = newFinalParts.join(' ').trim();
+          if (prev) {
+            return prev + ' ' + newText;
+          }
+          return newText;
+        });
+      }
       setInterimTranscript(currentInterim);
     };
 
@@ -131,6 +144,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
       setTranscript('');
       setInterimTranscript('');
       setError(null);
+      processedResultsRef.current.clear();
       try {
         recognitionRef.current.start();
       } catch (e) {
@@ -148,6 +162,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
   const resetTranscript = useCallback(() => {
     setTranscript('');
     setInterimTranscript('');
+    processedResultsRef.current.clear();
   }, []);
 
   return {
