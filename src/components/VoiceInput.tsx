@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { parseDateTimeItalian } from '../utils/dateParser';
 
@@ -22,24 +22,22 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
     resetTranscript
   } = useSpeechRecognition();
 
-  // Aggiorna l'input quando il transcript cambia
-  useEffect(() => {
-    if (transcript) {
-      setInputText(transcript);
-    }
-  }, [transcript]);
+  // Mostra: testo digitato OPPURE testo vocale (mai entrambi)
+  const displayText = isListening
+    ? (transcript || interimTranscript)
+    : inputText;
 
-  const currentText = inputText + (interimTranscript ? ' ' + interimTranscript : '');
-  const parsed = parseDateTimeItalian(currentText);
+  const parsed = parseDateTimeItalian(displayText);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (inputText.trim()) {
-      const result = parseDateTimeItalian(inputText);
+    const textToSubmit = isListening ? transcript : inputText;
+    if (textToSubmit.trim()) {
+      const result = parseDateTimeItalian(textToSubmit);
       onAddTodo(
-        result.remainingText || inputText.trim(),
+        result.remainingText || textToSubmit.trim(),
         result.date || undefined,
-        inputText
+        textToSubmit
       );
       setInputText('');
       resetTranscript();
@@ -50,8 +48,14 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
   const handleToggleListening = () => {
     if (isListening) {
       stopListening();
+      // Copia il transcript nell'input quando si ferma
+      if (transcript) {
+        setInputText(transcript);
+        setShowPreview(true);
+      }
     } else {
       setInputText('');
+      resetTranscript();
       startListening();
     }
   };
@@ -66,7 +70,6 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
   };
 
   const handleInputBlur = () => {
-    // Ritarda la chiusura per permettere il click sul pulsante
     setTimeout(() => setShowPreview(false), 200);
   };
 
@@ -77,7 +80,7 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
           <input
             ref={inputRef}
             type="text"
-            value={currentText}
+            value={displayText}
             onChange={handleInputChange}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
@@ -113,7 +116,7 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
           <button
             type="submit"
             className="submit-button"
-            disabled={!inputText.trim()}
+            disabled={!displayText.trim()}
             aria-label="Aggiungi task"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,8 +126,7 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
           </button>
         </div>
 
-        {/* Preview della data riconosciuta */}
-        {(showPreview || isListening) && currentText && parsed.date && (
+        {(showPreview || isListening) && displayText && parsed.date && (
           <div className="date-preview">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
