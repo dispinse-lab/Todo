@@ -83,7 +83,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
       let finalTranscript = '';
       let currentInterim = '';
 
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      // Ricostruisci l'intero transcript da tutti i risultati
+      for (let i = 0; i < event.results.length; i++) {
         const result = event.results[i];
         if (result.isFinal) {
           finalTranscript += result[0].transcript;
@@ -92,9 +93,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionResult {
         }
       }
 
-      if (finalTranscript) {
-        setTranscript(prev => prev + finalTranscript);
-      }
+      setTranscript(finalTranscript);
       setInterimTranscript(currentInterim);
     };
 
