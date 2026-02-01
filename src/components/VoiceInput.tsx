@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { parseInput, getPriorityLabel, getPriorityColor } from '../utils/dateParser';
 import type { Priority } from '../types';
@@ -11,6 +11,7 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
   const [inputText, setInputText] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const wasListeningRef = useRef(false);
 
   const {
     isListening,
@@ -22,6 +23,15 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
     stopListening,
     resetTranscript
   } = useSpeechRecognition();
+
+  // Quando il riconoscimento termina, copia il transcript in inputText
+  useEffect(() => {
+    if (wasListeningRef.current && !isListening && transcript) {
+      setInputText(transcript);
+      setShowPreview(true);
+    }
+    wasListeningRef.current = isListening;
+  }, [isListening, transcript]);
 
   const displayText = isListening
     ? (transcript || interimTranscript)
