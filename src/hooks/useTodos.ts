@@ -1,7 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Todo } from '../types';
+import type { Todo, Priority } from '../types';
 
 const STORAGE_KEY = 'voice-todos';
+
+const PRIORITY_ORDER: Record<Priority, number> = {
+  'urgent': 0,
+  'high': 1,
+  'medium': 2,
+  'low': 3,
+  'none': 4
+};
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
@@ -14,6 +22,7 @@ function loadTodos(): Todo[] {
       const parsed = JSON.parse(stored);
       return parsed.map((todo: Todo) => ({
         ...todo,
+        priority: todo.priority || 'none',
         dueDate: todo.dueDate ? new Date(todo.dueDate) : undefined,
         createdAt: new Date(todo.createdAt)
       }));
@@ -39,12 +48,18 @@ export function useTodos() {
     saveTodos(todos);
   }, [todos]);
 
-  const addTodo = useCallback((text: string, dueDate?: Date, originalInput?: string) => {
+  const addTodo = useCallback((
+    text: string,
+    dueDate?: Date,
+    priority: Priority = 'none',
+    originalInput?: string
+  ) => {
     const newTodo: Todo = {
       id: generateId(),
       text,
       completed: false,
       dueDate,
+      priority,
       createdAt: new Date(),
       originalInput: originalInput || text
     };
@@ -76,11 +91,16 @@ export function useTodos() {
     setTodos(prev => prev.filter(todo => !todo.completed));
   }, []);
 
-  // Ordina: non completati prima, poi per data di scadenza
+  // Ordina: non completati prima, poi per priorità, poi per data
   const sortedTodos = [...todos].sort((a, b) => {
     // Prima i non completati
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1;
+    }
+    // Poi per priorità (urgent prima)
+    const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
+    if (priorityDiff !== 0) {
+      return priorityDiff;
     }
     // Poi per data di scadenza (se presente)
     if (a.dueDate && b.dueDate) {

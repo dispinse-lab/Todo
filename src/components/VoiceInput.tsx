@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { parseDateTimeItalian } from '../utils/dateParser';
+import { parseInput, getPriorityLabel, getPriorityColor } from '../utils/dateParser';
+import type { Priority } from '../types';
 
 interface VoiceInputProps {
-  onAddTodo: (text: string, dueDate?: Date, originalInput?: string) => void;
+  onAddTodo: (text: string, dueDate?: Date, priority?: Priority, originalInput?: string) => void;
 }
 
 export function VoiceInput({ onAddTodo }: VoiceInputProps) {
@@ -22,21 +23,21 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
     resetTranscript
   } = useSpeechRecognition();
 
-  // Mostra: testo digitato OPPURE testo vocale (mai entrambi)
   const displayText = isListening
     ? (transcript || interimTranscript)
     : inputText;
 
-  const parsed = parseDateTimeItalian(displayText);
+  const parsed = parseInput(displayText);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const textToSubmit = isListening ? transcript : inputText;
     if (textToSubmit.trim()) {
-      const result = parseDateTimeItalian(textToSubmit);
+      const result = parseInput(textToSubmit);
       onAddTodo(
         result.remainingText || textToSubmit.trim(),
         result.date || undefined,
+        result.priority,
         textToSubmit
       );
       setInputText('');
@@ -48,7 +49,6 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
   const handleToggleListening = () => {
     if (isListening) {
       stopListening();
-      // Copia il transcript nell'input quando si ferma
       if (transcript) {
         setInputText(transcript);
         setShowPreview(true);
@@ -73,6 +73,8 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
     setTimeout(() => setShowPreview(false), 200);
   };
 
+  const hasParsedInfo = parsed.date || parsed.priority !== 'none';
+
   return (
     <div className="voice-input-container">
       <form onSubmit={handleSubmit} className="voice-input-form">
@@ -84,7 +86,7 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
             onChange={handleInputChange}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
-            placeholder={isListening ? 'Sto ascoltando...' : 'Aggiungi un task... (es. "Comprare il latte domani alle 10")'}
+            placeholder={isListening ? 'Sto ascoltando...' : 'Aggiungi un task... (es. "Urgente: chiamare cliente domani alle 10")'}
             className={`voice-input ${isListening ? 'listening' : ''}`}
             disabled={isListening}
           />
@@ -126,25 +128,42 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
           </button>
         </div>
 
-        {(showPreview || isListening) && displayText && parsed.date && (
-          <div className="date-preview">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <span>
-              {parsed.remainingText && <strong>"{parsed.remainingText}"</strong>}
-              {' '} - {parsed.date.toLocaleDateString('it-IT', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long'
-              })} alle {parsed.date.toLocaleTimeString('it-IT', {
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </span>
+        {(showPreview || isListening) && displayText && hasParsedInfo && (
+          <div className="input-preview">
+            {parsed.remainingText && (
+              <span className="preview-text">"{parsed.remainingText}"</span>
+            )}
+
+            {parsed.priority !== 'none' && (
+              <span
+                className="preview-priority"
+                style={{
+                  backgroundColor: getPriorityColor(parsed.priority) + '20',
+                  color: getPriorityColor(parsed.priority)
+                }}
+              >
+                {getPriorityLabel(parsed.priority)}
+              </span>
+            )}
+
+            {parsed.date && (
+              <span className="preview-date">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                {parsed.date.toLocaleDateString('it-IT', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short'
+                })} {parsed.date.toLocaleTimeString('it-IT', {
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+            )}
           </div>
         )}
       </form>

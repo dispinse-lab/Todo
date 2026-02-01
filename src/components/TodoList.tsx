@@ -11,6 +11,7 @@ export function TodoList() {
     addTodo,
     toggleTodo,
     deleteTodo,
+    updateTodo,
     clearCompleted,
     pendingCount,
     completedCount
@@ -84,7 +85,7 @@ export function TodoList() {
                   <path d="M9 14l2 2 4-4" />
                 </svg>
                 <p>Nessun task ancora.</p>
-                <span>Prova a dire "Comprare il pane domani alle 10"</span>
+                <span>Prova a dire "Urgente comprare il pane domani alle 10"</span>
               </>
             ) : filter === 'pending' ? (
               <>
@@ -113,6 +114,7 @@ export function TodoList() {
               todo={todo}
               onToggle={toggleTodo}
               onDelete={deleteTodo}
+              onUpdate={updateTodo}
             />
           ))
         )}
@@ -135,7 +137,7 @@ export function TodoList() {
             <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          Tip: Prova a dire "domani alle 15", "lunedì prossimo", "fra 2 ore"
+          Tip: Prova "urgente", "priorità alta", "domani alle 15"
         </p>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-import type { ParsedDateTime } from '../types';
+import type { ParsedInput, Priority } from '../types';
 
 const GIORNI_SETTIMANA = [
   'domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'
@@ -37,6 +37,14 @@ const NUMERI_TESTUALI: Record<string, number> = {
   'trenta': 30,
   'trentuno': 31
 };
+
+// Pattern per riconoscere le priorità
+const PRIORITY_PATTERNS: { pattern: RegExp; priority: Priority }[] = [
+  { pattern: /\b(?:urgente|urgentissim[oa]|asap|subito)\b/i, priority: 'urgent' },
+  { pattern: /\b(?:priorit[àa]\s*(?:alta|1|uno)|alta\s*priorit[àa]|important[ei]|prioritari[oa])\b/i, priority: 'high' },
+  { pattern: /\b(?:priorit[àa]\s*(?:media|2|due)|media\s*priorit[àa])\b/i, priority: 'medium' },
+  { pattern: /\b(?:priorit[àa]\s*(?:bassa|3|tre)|bassa\s*priorit[àa]|poco\s*importante)\b/i, priority: 'low' },
+];
 
 function parseNumber(text: string): number | null {
   const lower = text.toLowerCase().trim();
@@ -82,12 +90,31 @@ function getNextWeekday(dayIndex: number, fromDate: Date = new Date()): Date {
   return result;
 }
 
-export function parseDateTimeItalian(input: string): ParsedDateTime {
+function parsePriority(text: string): { priority: Priority; cleanedText: string } {
+  let priority: Priority = 'none';
+  let cleanedText = text;
+
+  for (const { pattern, priority: p } of PRIORITY_PATTERNS) {
+    if (pattern.test(text)) {
+      priority = p;
+      cleanedText = cleanedText.replace(pattern, '').trim();
+      break;
+    }
+  }
+
+  return { priority, cleanedText };
+}
+
+export function parseInput(input: string): ParsedInput {
   const now = new Date();
   let text = input.toLowerCase().trim();
   let date: Date | null = null;
   let remainingText = text;
-  let confidence = 0;
+
+  // Prima estrai la priorità
+  const { priority, cleanedText } = parsePriority(text);
+  remainingText = cleanedText;
+  text = cleanedText;
 
   // Pattern per "alle HH:MM" o "alle HH"
   const timePattern = /\balle?\s+(\d{1,2})(?::(\d{2}))?\b/i;
@@ -112,26 +139,22 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     hours = parseInt(timeMatch[1], 10);
     minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
     remainingText = remainingText.replace(timeMatch[0], '').trim();
-    confidence += 0.3;
   }
 
   // Controlla "oggi"
   if (/\boggi\b/i.test(text)) {
     date = new Date(now);
     remainingText = remainingText.replace(/\boggi\b/gi, '').trim();
-    confidence += 0.4;
   }
   // Controlla "domani"
   else if (/\bdomani\b/i.test(text)) {
     date = addDays(now, 1);
     remainingText = remainingText.replace(/\bdomani\b/gi, '').trim();
-    confidence += 0.5;
   }
   // Controlla "dopodomani"
   else if (/\bdopodomani\b/i.test(text)) {
     date = addDays(now, 2);
     remainingText = remainingText.replace(/\bdopodomani\b/gi, '').trim();
-    confidence += 0.5;
   }
   // Controlla "stasera"
   else if (/\bstasera\b/i.test(text)) {
@@ -141,7 +164,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
       minutes = 0;
     }
     remainingText = remainingText.replace(/\bstasera\b/gi, '').trim();
-    confidence += 0.5;
   }
   // Controlla "stamattina"
   else if (/\bstamattina\b/i.test(text)) {
@@ -151,7 +173,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
       minutes = 0;
     }
     remainingText = remainingText.replace(/\bstamattina\b/gi, '').trim();
-    confidence += 0.5;
   }
   // Controlla "questo pomeriggio"
   else if (/\bquesto\s+pomeriggio\b/i.test(text)) {
@@ -161,13 +182,11 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
       minutes = 0;
     }
     remainingText = remainingText.replace(/\bquesto\s+pomeriggio\b/gi, '').trim();
-    confidence += 0.5;
   }
   // Controlla "la prossima settimana"
   else if (/\b(?:la\s+)?prossima\s+settimana\b/i.test(text)) {
     date = addDays(now, 7);
     remainingText = remainingText.replace(/\b(?:la\s+)?prossima\s+settimana\b/gi, '').trim();
-    confidence += 0.4;
   }
   // Controlla tempo relativo (fra X ore/minuti)
   else if (relativeTimePattern.test(text)) {
@@ -181,7 +200,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
       date = addMinutes(now, amount);
     }
     remainingText = remainingText.replace(match[0], '').trim();
-    confidence += 0.5;
   }
   // Controlla giorno relativo (fra X giorni)
   else if (relativeDayPattern.test(text)) {
@@ -189,7 +207,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     const amount = parseNumber(match[1]) || 1;
     date = addDays(now, amount);
     remainingText = remainingText.replace(match[0], '').trim();
-    confidence += 0.5;
   }
   // Controlla "prossimo lunedì" etc.
   else if (nextWeekdayPattern1.test(text)) {
@@ -199,7 +216,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     if (dayIndex !== -1) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
-      confidence += 0.5;
     }
   }
   // Controlla "lunedì prossimo" etc.
@@ -210,7 +226,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     if (dayIndex !== -1) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
-      confidence += 0.5;
     }
   }
   // Controlla data esplicita "il 15 marzo"
@@ -221,12 +236,10 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     const monthIndex = MESI.indexOf(monthName);
     if (monthIndex !== -1) {
       date = new Date(now.getFullYear(), monthIndex, day);
-      // Se la data è passata, metti l'anno prossimo
       if (date < now) {
         date.setFullYear(date.getFullYear() + 1);
       }
       remainingText = remainingText.replace(match[0], '').trim();
-      confidence += 0.6;
     }
   }
   // Controlla giorno della settimana semplice
@@ -237,7 +250,6 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
     if (dayIndex !== -1) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
-      confidence += 0.4;
     }
   }
 
@@ -245,13 +257,10 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
   if (date && hours !== null) {
     date = setTime(date, hours, minutes);
   } else if (hours !== null) {
-    // Solo orario senza data - usa oggi
     date = setTime(now, hours, minutes);
-    // Se l'orario è già passato, metti domani
     if (date < now) {
       date = addDays(date, 1);
     }
-    confidence += 0.2;
   }
 
   // Pulisci il testo rimanente
@@ -268,8 +277,8 @@ export function parseDateTimeItalian(input: string): ParsedDateTime {
 
   return {
     date,
-    remainingText,
-    confidence: Math.min(confidence, 1)
+    priority,
+    remainingText
   };
 }
 
@@ -298,6 +307,26 @@ export function formatDateTime(date: Date): string {
     const day = date.getDate();
     const month = MESI[date.getMonth()];
     return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${day} ${month} alle ${timeStr}`;
+  }
+}
+
+export function getPriorityLabel(priority: Priority): string {
+  switch (priority) {
+    case 'urgent': return 'Urgente';
+    case 'high': return 'Alta';
+    case 'medium': return 'Media';
+    case 'low': return 'Bassa';
+    default: return '';
+  }
+}
+
+export function getPriorityColor(priority: Priority): string {
+  switch (priority) {
+    case 'urgent': return '#ef4444';
+    case 'high': return '#f97316';
+    case 'medium': return '#eab308';
+    case 'low': return '#22c55e';
+    default: return 'transparent';
   }
 }
 

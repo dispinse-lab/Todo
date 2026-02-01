@@ -502,6 +502,160 @@
   height: 16px;
 }
 
+/* Input Preview */
+.input-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.preview-text {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.preview-priority {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.preview-date {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--primary-light);
+}
+
+.preview-date svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Todo Meta */
+.todo-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* Todo Priority Badge */
+.todo-priority {
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* Todo Actions */
+.todo-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.todo-item:hover .todo-actions {
+  opacity: 1;
+}
+
+.todo-action-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.todo-action-btn:hover {
+  background: var(--bg-input);
+  color: var(--text);
+}
+
+.todo-action-btn.delete:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.todo-action-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Priority Dropdown */
+.priority-dropdown {
+  position: relative;
+}
+
+.priority-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px var(--shadow);
+  z-index: 100;
+  min-width: 120px;
+  overflow: hidden;
+}
+
+.priority-option {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-left: 3px solid transparent;
+}
+
+.priority-option:hover {
+  background: var(--bg-input);
+}
+
+.priority-option.active {
+  background: var(--bg-input);
+  font-weight: 600;
+}
+
+/* Todo Edit Input */
+.todo-edit-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--primary);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 1rem;
+  border-radius: 6px;
+  outline: none;
+}
+
+.todo-edit-input:focus {
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
 /* Responsive */
 @media (max-width: 480px) {
   .app-header h1 {
@@ -541,7 +695,12 @@
     padding: 0.6rem 0.75rem;
   }
 
-  .todo-delete {
+  .todo-actions {
     opacity: 1;
+  }
+
+  .priority-menu {
+    right: auto;
+    left: 0;
   }
 }
