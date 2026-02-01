@@ -72,7 +72,7 @@ export function TodoList() {
     syncCode,
     isLoading,
     isSyncing,
-    isFirebaseConfigured,
+    isSyncConfigured,
     createSyncCode,
     useSyncCode,
     disconnectSync
@@ -161,8 +161,8 @@ export function TodoList() {
 
       {showSyncPanel && (
         <div className="sync-panel">
-          {!isFirebaseConfigured ? (
-            <p className="sync-warning">Firebase non configurato. I dati sono salvati solo localmente.</p>
+          {!isSyncConfigured ? (
+            <p className="sync-warning">Sync non configurato. I dati sono salvati solo localmente.</p>
           ) : syncCode ? (
             <>
               <p className="sync-info">Codice sync: <strong>{syncCode}</strong></p>

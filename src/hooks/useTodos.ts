@@ -255,7 +255,7 @@ export function useTodos() {
     syncCode,
     isLoading,
     isSyncing,
-    isFirebaseConfigured: isSyncConfigured(),
+    isSyncConfigured: isSyncConfigured(),
     createSyncCode,
     useSyncCode,
     disconnectSync
