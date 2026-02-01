@@ -698,8 +698,8 @@
 
 /* Drag Handle */
 .drag-handle {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -708,6 +708,9 @@
   opacity: 0;
   transition: opacity 0.2s;
   flex-shrink: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .drag-handle:active {
@@ -719,8 +722,8 @@
 }
 
 .drag-handle svg {
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
 }
 
 /* Todo Item in editing mode */
