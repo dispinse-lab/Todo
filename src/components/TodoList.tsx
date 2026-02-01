@@ -68,10 +68,19 @@ export function TodoList() {
     clearCompleted,
     reorderTodos,
     pendingCount,
-    completedCount
+    completedCount,
+    syncCode,
+    isLoading,
+    isSyncing,
+    isFirebaseConfigured,
+    createSyncCode,
+    useSyncCode,
+    disconnectSync
   } = useTodos();
 
   const [filter, setFilter] = useState<FilterType>('all');
+  const [showSyncPanel, setShowSyncPanel] = useState(false);
+  const [inputCode, setInputCode] = useState('');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -106,6 +115,26 @@ export function TodoList() {
     }
   };
 
+  const handleCreateSync = async () => {
+    const code = await createSyncCode();
+    setInputCode(code);
+  };
+
+  const handleUseCode = async () => {
+    if (inputCode.trim()) {
+      await useSyncCode(inputCode.trim());
+      setShowSyncPanel(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="todo-list-container">
+        <div className="loading-state">Caricamento...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="todo-list-container">
       <header className="app-header">
@@ -116,7 +145,50 @@ export function TodoList() {
           <line x1="8" y1="23" x2="16" y2="23" />
         </svg>
         <h1>Voice Todo</h1>
+        <button
+          className={`sync-toggle-btn ${syncCode ? 'connected' : ''} ${isSyncing ? 'syncing' : ''}`}
+          onClick={() => setShowSyncPanel(!showSyncPanel)}
+          title={syncCode ? `Sincronizzato: ${syncCode}` : 'Sincronizza dispositivi'}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
+        </button>
       </header>
+
+      {showSyncPanel && (
+        <div className="sync-panel">
+          {!isFirebaseConfigured ? (
+            <p className="sync-warning">Firebase non configurato. I dati sono salvati solo localmente.</p>
+          ) : syncCode ? (
+            <>
+              <p className="sync-info">Codice sync: <strong>{syncCode}</strong></p>
+              <p className="sync-hint">Usa questo codice su altri dispositivi</p>
+              <button className="sync-btn disconnect" onClick={disconnectSync}>Disconnetti</button>
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={inputCode}
+                onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                placeholder="Inserisci codice..."
+                className="sync-input"
+                maxLength={8}
+              />
+              <div className="sync-actions">
+                <button className="sync-btn" onClick={handleUseCode} disabled={!inputCode.trim()}>
+                  Connetti
+                </button>
+                <button className="sync-btn primary" onClick={handleCreateSync}>
+                  Nuovo codice
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <VoiceInput onAddTodo={addTodo} />
 
