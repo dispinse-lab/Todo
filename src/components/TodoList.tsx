@@ -117,7 +117,9 @@ export function TodoList() {
 
   const handleCreateSync = async () => {
     const code = await createSyncCode();
-    setInputCode(code);
+    if (code) {
+      setInputCode(code);
+    }
   };
 
   const handleUseCode = async () => {

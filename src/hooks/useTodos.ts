@@ -1,11 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import {
-  doc,
-  setDoc,
-  onSnapshot,
-  getDoc
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { isSyncConfigured, loadFromServer, saveToServer, createSyncBin } from '../lib/syncService';
 import type { Todo, Priority } from '../types';
 
 const SYNC_CODE_KEY = 'voice-todos-sync-code';
@@ -15,24 +9,12 @@ function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-function generateSyncCode(): string {
-  return Math.random().toString(36).substr(2, 8).toUpperCase();
-}
-
 function getSyncCode(): string | null {
   return localStorage.getItem(SYNC_CODE_KEY);
 }
 
-function setSyncCode(code: string): void {
+function setSyncCodeStorage(code: string): void {
   localStorage.setItem(SYNC_CODE_KEY, code);
-}
-
-// Fallback to localStorage if Firebase is not configured
-function isFirebaseConfigured(): boolean {
-  return !!(
-    import.meta.env.VITE_FIREBASE_API_KEY &&
-    import.meta.env.VITE_FIREBASE_PROJECT_ID
-  );
 }
 
 function loadLocalTodos(): Todo[] {
@@ -61,7 +43,6 @@ function saveLocalTodos(todos: Todo[]): void {
   }
 }
 
-// Serialize todos for Firestore (Dates -> ISO strings)
 function serializeTodos(todos: Todo[]): object[] {
   return todos.map(todo => ({
     ...todo,
@@ -70,7 +51,6 @@ function serializeTodos(todos: Todo[]): object[] {
   }));
 }
 
-// Deserialize todos from Firestore (ISO strings -> Dates)
 function deserializeTodos(data: object[]): Todo[] {
   return data.map((todo: any) => ({
     ...todo,
@@ -85,107 +65,113 @@ export function useTodos() {
   const [syncCode, setSyncCodeState] = useState<string | null>(getSyncCode());
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const lastSyncRef = useRef<string>('');
 
-  const useFirebase = isFirebaseConfigured() && syncCode;
+  const canSync = isSyncConfigured() && syncCode;
 
-  // Load todos and set up real-time listener
+  // Load todos on mount
   useEffect(() => {
-    if (!useFirebase) {
-      // Use localStorage
-      setTodos(loadLocalTodos());
-      setIsLoading(false);
-      return;
-    }
+    const loadTodos = async () => {
+      // Always load local first
+      const localTodos = loadLocalTodos();
+      setTodos(localTodos);
 
-    // Use Firestore with real-time sync
-    const docRef = doc(db, 'todos', syncCode);
-
-    const unsubscribe = onSnapshot(docRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data.todos) {
-          setTodos(deserializeTodos(data.todos));
+      // Then try to sync from server
+      if (canSync) {
+        const serverData = await loadFromServer(syncCode);
+        if (serverData?.todos) {
+          const serverTodos = deserializeTodos(serverData.todos);
+          setTodos(serverTodos);
+          saveLocalTodos(serverTodos);
         }
-      } else {
-        setTodos([]);
       }
       setIsLoading(false);
-      setIsSyncing(false);
-    }, (error) => {
-      console.error('Firestore error:', error);
-      // Fallback to localStorage
-      setTodos(loadLocalTodos());
-      setIsLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, [useFirebase, syncCode]);
+    loadTodos();
+  }, [canSync, syncCode]);
 
-  // Save to Firestore or localStorage when todos change
+  // Sync to server when todos change
   useEffect(() => {
     if (isLoading) return;
 
-    if (useFirebase) {
-      setIsSyncing(true);
-      const docRef = doc(db, 'todos', syncCode!);
-      setDoc(docRef, {
-        todos: serializeTodos(todos),
-        updatedAt: new Date().toISOString()
-      }).then(() => {
-        setIsSyncing(false);
-      }).catch((error) => {
-        console.error('Error saving to Firestore:', error);
-        setIsSyncing(false);
-      });
-    } else {
-      saveLocalTodos(todos);
-    }
-  }, [todos, useFirebase, syncCode, isLoading]);
+    // Always save locally
+    saveLocalTodos(todos);
 
-  const createSyncCode = useCallback(async () => {
-    const code = generateSyncCode();
-    setSyncCode(code);
-    setSyncCodeState(code);
-
-    if (isFirebaseConfigured()) {
-      // Migrate local todos to Firestore
-      const localTodos = loadLocalTodos();
-      if (localTodos.length > 0) {
-        const docRef = doc(db, 'todos', code);
-        await setDoc(docRef, {
-          todos: serializeTodos(localTodos),
+    // Sync to server if connected
+    if (canSync) {
+      const serialized = JSON.stringify(todos);
+      if (serialized !== lastSyncRef.current) {
+        lastSyncRef.current = serialized;
+        setIsSyncing(true);
+        saveToServer(syncCode, {
+          todos: serializeTodos(todos),
           updatedAt: new Date().toISOString()
+        }).finally(() => {
+          setIsSyncing(false);
         });
       }
     }
+  }, [todos, canSync, syncCode, isLoading]);
 
-    return code;
+  // Poll for updates every 30 seconds when syncing
+  useEffect(() => {
+    if (!canSync) return;
+
+    const interval = setInterval(async () => {
+      const serverData = await loadFromServer(syncCode);
+      if (serverData?.todos) {
+        const serverTodos = deserializeTodos(serverData.todos);
+        const serverSerialized = JSON.stringify(serverTodos);
+        if (serverSerialized !== lastSyncRef.current) {
+          lastSyncRef.current = serverSerialized;
+          setTodos(serverTodos);
+        }
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [canSync, syncCode]);
+
+  const createSyncCode = useCallback(async () => {
+    const binId = await createSyncBin();
+    if (binId) {
+      setSyncCodeStorage(binId);
+      setSyncCodeState(binId);
+
+      // Upload current todos to new bin
+      const currentTodos = loadLocalTodos();
+      if (currentTodos.length > 0) {
+        await saveToServer(binId, {
+          todos: serializeTodos(currentTodos),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+      return binId;
+    }
+    return null;
   }, []);
 
   const useSyncCode = useCallback(async (code: string) => {
-    const normalizedCode = code.toUpperCase().trim();
-    setSyncCode(normalizedCode);
+    const normalizedCode = code.trim();
+    setSyncCodeStorage(normalizedCode);
     setSyncCodeState(normalizedCode);
     setIsLoading(true);
 
-    if (isFirebaseConfigured()) {
-      // Check if the code exists
-      const docRef = doc(db, 'todos', normalizedCode);
-      const snapshot = await getDoc(docRef);
-      if (!snapshot.exists()) {
-        // Create empty document
-        await setDoc(docRef, {
-          todos: [],
-          updatedAt: new Date().toISOString()
-        });
-      }
+    // Try to load from server
+    const serverData = await loadFromServer(normalizedCode);
+    if (serverData?.todos) {
+      const serverTodos = deserializeTodos(serverData.todos);
+      setTodos(serverTodos);
+      saveLocalTodos(serverTodos);
     }
+    setIsLoading(false);
   }, []);
 
   const disconnectSync = useCallback(() => {
     localStorage.removeItem(SYNC_CODE_KEY);
     setSyncCodeState(null);
-    setTodos(loadLocalTodos());
   }, []);
 
   const addTodo = useCallback((
@@ -243,7 +229,6 @@ export function useTodos() {
     });
   }, []);
 
-  // Sort: incomplete first, then by manual order
   const sortedTodos = [...todos].sort((a, b) => {
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1;
@@ -267,11 +252,10 @@ export function useTodos() {
     reorderTodos,
     pendingCount,
     completedCount,
-    // Sync features
     syncCode,
     isLoading,
     isSyncing,
-    isFirebaseConfigured: isFirebaseConfigured(),
+    isFirebaseConfigured: isSyncConfigured(),
     createSyncCode,
     useSyncCode,
     disconnectSync
