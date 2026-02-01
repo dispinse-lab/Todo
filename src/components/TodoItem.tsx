@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Todo, Priority } from '../types';
-import { formatDateTime, isOverdue, getPriorityLabel, getPriorityColor } from '../utils/dateParser';
+import { formatDateTime, isOverdue, getPriorityLabel, getPriorityColor, parseInput } from '../utils/dateParser';
 
 interface TodoItemProps {
   todo: Todo;
@@ -22,7 +22,19 @@ export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) 
 
   const handleSaveEdit = () => {
     if (editText.trim()) {
-      onUpdate(todo.id, { text: editText.trim() });
+      const parsed = parseInput(editText);
+      const updates: Partial<Todo> = {
+        text: parsed.remainingText || editText.trim()
+      };
+      // Aggiorna data se riconosciuta
+      if (parsed.date) {
+        updates.dueDate = parsed.date;
+      }
+      // Aggiorna priorità se riconosciuta
+      if (parsed.priority !== 'none') {
+        updates.priority = parsed.priority;
+      }
+      onUpdate(todo.id, updates);
       setIsEditing(false);
     }
   };

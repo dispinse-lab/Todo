@@ -1,8 +1,19 @@
 import type { ParsedInput, Priority } from '../types';
 
 const GIORNI_SETTIMANA = [
-  'domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'
+  'domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'
 ];
+
+// Mappa varianti accentate/non accentate
+const GIORNI_MAP: Record<string, number> = {
+  'domenica': 0,
+  'lunedi': 1, 'lunedì': 1,
+  'martedi': 2, 'martedì': 2,
+  'mercoledi': 3, 'mercoledì': 3,
+  'giovedi': 4, 'giovedì': 4,
+  'venerdi': 5, 'venerdì': 5,
+  'sabato': 6
+};
 
 const MESI = [
   'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
@@ -124,11 +135,11 @@ export function parseInput(input: string): ParsedInput {
   const relativeDayPattern = /\b(?:fra|tra)\s+(\d+|un|una|uno|due|tre|quattro|cinque|sei|sette|otto|nove|dieci)\s+giorn[oi]\b/i;
   // Pattern per data esplicita "il 15 marzo" o "15 marzo"
   const explicitDatePattern = /\b(?:il\s+)?(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\b/i;
-  // Pattern per "prossimo/a lunedì" o "lunedì prossimo"
-  const nextWeekdayPattern1 = /\b(?:prossim[oa])\s+(lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)\b/i;
-  const nextWeekdayPattern2 = /\b(lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)\s+(?:prossim[oa])\b/i;
-  // Pattern per giorno della settimana semplice
-  const weekdayPattern = /\b(lunedì|martedì|mercoledì|giovedì|venerdì|sabato|domenica)\b/i;
+  // Pattern per "prossimo/a lunedì" o "lunedì prossimo" (con o senza accento)
+  const nextWeekdayPattern1 = /\b(?:prossim[oa])\s+(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\b/i;
+  const nextWeekdayPattern2 = /\b(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\s+(?:prossim[oa])\b/i;
+  // Pattern per giorno della settimana semplice (con o senza accento)
+  const weekdayPattern = /\b(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\b/i;
 
   // Estrai l'orario se presente
   let hours: number | null = null;
@@ -212,8 +223,8 @@ export function parseInput(input: string): ParsedInput {
   else if (nextWeekdayPattern1.test(text)) {
     const match = text.match(nextWeekdayPattern1)!;
     const dayName = match[1].toLowerCase();
-    const dayIndex = GIORNI_SETTIMANA.indexOf(dayName);
-    if (dayIndex !== -1) {
+    const dayIndex = GIORNI_MAP[dayName];
+    if (dayIndex !== undefined) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
     }
@@ -222,8 +233,8 @@ export function parseInput(input: string): ParsedInput {
   else if (nextWeekdayPattern2.test(text)) {
     const match = text.match(nextWeekdayPattern2)!;
     const dayName = match[1].toLowerCase();
-    const dayIndex = GIORNI_SETTIMANA.indexOf(dayName);
-    if (dayIndex !== -1) {
+    const dayIndex = GIORNI_MAP[dayName];
+    if (dayIndex !== undefined) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
     }
@@ -246,8 +257,8 @@ export function parseInput(input: string): ParsedInput {
   else if (weekdayPattern.test(text)) {
     const match = text.match(weekdayPattern)!;
     const dayName = match[1].toLowerCase();
-    const dayIndex = GIORNI_SETTIMANA.indexOf(dayName);
-    if (dayIndex !== -1) {
+    const dayIndex = GIORNI_MAP[dayName];
+    if (dayIndex !== undefined) {
       date = getNextWeekday(dayIndex, now);
       remainingText = remainingText.replace(match[0], '').trim();
     }
