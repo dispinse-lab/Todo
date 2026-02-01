@@ -4,6 +4,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -75,7 +76,13 @@ export function TodoList() {
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Deve trascinare almeno 8px prima di attivare
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -102,49 +109,35 @@ export function TodoList() {
   return (
     <div className="todo-list-container">
       <header className="app-header">
-        <h1>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="23" />
-            <line x1="8" y1="23" x2="16" y2="23" />
-          </svg>
-          Voice Todo
-        </h1>
-        <p className="app-subtitle">Gestisci i tuoi impegni con la voce</p>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+          <line x1="12" y1="19" x2="12" y2="23" />
+          <line x1="8" y1="23" x2="16" y2="23" />
+        </svg>
+        <h1>Voice Todo</h1>
       </header>
 
       <VoiceInput onAddTodo={addTodo} />
-
-      <div className="todo-stats">
-        <div className="stat">
-          <span className="stat-number">{pendingCount}</span>
-          <span className="stat-label">da fare</span>
-        </div>
-        <div className="stat">
-          <span className="stat-number">{completedCount}</span>
-          <span className="stat-label">completati</span>
-        </div>
-      </div>
 
       <div className="filter-tabs">
         <button
           className={`filter-tab ${filter === 'all' ? 'active' : ''}`}
           onClick={() => setFilter('all')}
         >
-          Tutti ({todos.length})
+          Tutti
         </button>
         <button
           className={`filter-tab ${filter === 'pending' ? 'active' : ''}`}
           onClick={() => setFilter('pending')}
         >
-          Da fare ({pendingCount})
+          Da fare
         </button>
         <button
           className={`filter-tab ${filter === 'completed' ? 'active' : ''}`}
           onClick={() => setFilter('completed')}
         >
-          Completati ({completedCount})
+          Fatti
         </button>
       </div>
 
@@ -159,7 +152,7 @@ export function TodoList() {
                   <path d="M9 14l2 2 4-4" />
                 </svg>
                 <p>Nessun task ancora.</p>
-                <span>Prova a dire "Urgente comprare il pane domani alle 10"</span>
+                <span>Prova "Urgente comprare il pane domani alle 10"</span>
               </>
             ) : filter === 'pending' ? (
               <>
@@ -168,7 +161,6 @@ export function TodoList() {
                   <polyline points="22 4 12 14.01 9 11.01" />
                 </svg>
                 <p>Tutto fatto!</p>
-                <span>Non hai task da completare</span>
               </>
             ) : (
               <>
@@ -177,7 +169,6 @@ export function TodoList() {
                   <line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
                 <p>Nessun task completato</p>
-                <span>Completa qualche task per vederlo qui</span>
               </>
             )}
           </div>
@@ -205,25 +196,13 @@ export function TodoList() {
         )}
       </div>
 
-      {completedCount > 0 && (
-        <button className="clear-completed" onClick={clearCompleted}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-          </svg>
-          Elimina completati
-        </button>
-      )}
-
       <footer className="app-footer">
-        <p>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          Tip: Prova "urgente", "priorità alta", "domani alle 15"
-        </p>
+        <span className="stats-text">{pendingCount} da fare · {completedCount} completati</span>
+        {completedCount > 0 && (
+          <button className="clear-completed-btn" onClick={clearCompleted}>
+            Elimina completati
+          </button>
+        )}
       </footer>
     </div>
   );
