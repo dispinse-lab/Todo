@@ -1,6 +1,7 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
+const redis = Redis.fromEnv();
 const TODOS_KEY = 'voice-todos';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -16,25 +17,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     switch (req.method) {
       case 'GET': {
-        const todos = await kv.get(TODOS_KEY) || [];
+        const todos = await redis.get(TODOS_KEY) || [];
         return res.status(200).json(todos);
       }
 
       case 'POST': {
-        const todos = (await kv.get(TODOS_KEY) || []) as Array<unknown>;
+        const todos = (await redis.get(TODOS_KEY) || []) as Array<unknown>;
         const newTodo = req.body;
         todos.unshift(newTodo);
-        await kv.set(TODOS_KEY, todos);
+        await redis.set(TODOS_KEY, todos);
         return res.status(201).json(newTodo);
       }
 
       case 'PUT': {
-        const todos = (await kv.get(TODOS_KEY) || []) as Array<{ id: string }>;
+        const todos = (await redis.get(TODOS_KEY) || []) as Array<{ id: string }>;
         const { id, ...updates } = req.body;
         const index = todos.findIndex(t => t.id === id);
         if (index !== -1) {
           todos[index] = { ...todos[index], ...updates };
-          await kv.set(TODOS_KEY, todos);
+          await redis.set(TODOS_KEY, todos);
           return res.status(200).json(todos[index]);
         }
         return res.status(404).json({ error: 'Todo not found' });
@@ -45,9 +46,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!id || typeof id !== 'string') {
           return res.status(400).json({ error: 'ID required' });
         }
-        const todos = (await kv.get(TODOS_KEY) || []) as Array<{ id: string }>;
+        const todos = (await redis.get(TODOS_KEY) || []) as Array<{ id: string }>;
         const filtered = todos.filter(t => t.id !== id);
-        await kv.set(TODOS_KEY, filtered);
+        await redis.set(TODOS_KEY, filtered);
         return res.status(200).json({ success: true });
       }
 
