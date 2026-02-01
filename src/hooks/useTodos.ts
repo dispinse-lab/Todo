@@ -1,60 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  collection,
-  doc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  onSnapshot,
-  writeBatch,
-  Timestamp
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
 import type { Todo, Priority } from '../types';
 
 const STORAGE_KEY = 'voice-todos';
-const TODOS_COLLECTION = 'todos';
+const API_BASE = '/api';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
 
-// Converte un documento Firestore in Todo
-function firestoreToTodo(doc: { id: string; data: () => Record<string, unknown> }): Todo {
-  const data = doc.data();
-  return {
-    id: doc.id,
-    text: data.text as string,
-    completed: data.completed as boolean,
-    dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : undefined,
-    hasTime: data.hasTime as boolean | undefined,
-    priority: (data.priority as Priority) || 'none',
-    createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
-    originalInput: data.originalInput as string,
-    order: data.order as number | undefined
-  };
-}
-
-// Converte un Todo in formato Firestore
-function todoToFirestore(todo: Partial<Todo>, userId: string): Record<string, unknown> {
-  const data: Record<string, unknown> = { userId };
-
-  if (todo.text !== undefined) data.text = todo.text;
-  if (todo.completed !== undefined) data.completed = todo.completed;
-  if (todo.dueDate !== undefined) data.dueDate = todo.dueDate ? Timestamp.fromDate(todo.dueDate) : null;
-  if (todo.hasTime !== undefined) data.hasTime = todo.hasTime;
-  if (todo.priority !== undefined) data.priority = todo.priority;
-  if (todo.createdAt !== undefined) data.createdAt = Timestamp.fromDate(todo.createdAt);
-  if (todo.originalInput !== undefined) data.originalInput = todo.originalInput;
-  if (todo.order !== undefined) data.order = todo.order;
-
-  return data;
-}
-
-// Funzioni localStorage per fallback quando non autenticato
-function loadTodosFromStorage(): Todo[] {
+// localStorage per cache locale e fallback offline
+function loadFromStorage(): Todo[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -67,57 +22,94 @@ function loadTodosFromStorage(): Todo[] {
       }));
     }
   } catch (e) {
-    console.error('Errore nel caricamento dei todos:', e);
+    console.error('Errore nel caricamento locale:', e);
   }
   return [];
 }
 
-function saveTodosToStorage(todos: Todo[]): void {
+function saveToStorage(todos: Todo[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
   } catch (e) {
-    console.error('Errore nel salvataggio dei todos:', e);
+    console.error('Errore nel salvataggio locale:', e);
   }
 }
 
-export function useTodos(userId?: string | null) {
-  const [todos, setTodos] = useState<Todo[]>([]);
+// Converte date per JSON
+function serializeTodo(todo: Todo): Record<string, unknown> {
+  return {
+    ...todo,
+    dueDate: todo.dueDate?.toISOString() || null,
+    createdAt: todo.createdAt.toISOString()
+  };
+}
+
+// Converte da JSON a Todo
+function deserializeTodo(data: Record<string, unknown>): Todo {
+  return {
+    id: data.id as string,
+    text: data.text as string,
+    completed: data.completed as boolean,
+    dueDate: data.dueDate ? new Date(data.dueDate as string) : undefined,
+    hasTime: data.hasTime as boolean | undefined,
+    priority: (data.priority as Priority) || 'none',
+    createdAt: new Date(data.createdAt as string),
+    originalInput: data.originalInput as string,
+    order: data.order as number | undefined
+  };
+}
+
+export function useTodos() {
+  const [todos, setTodos] = useState<Todo[]>(loadFromStorage);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(true);
 
-  // Effetto per caricare i todos
+  // Carica i todos dal server all'avvio
   useEffect(() => {
-    if (!userId) {
-      // Modalità locale (non autenticato)
-      setTodos(loadTodosFromStorage());
-      setLoading(false);
-      return;
+    async function fetchTodos() {
+      try {
+        const res = await fetch(`${API_BASE}/todos`);
+        if (res.ok) {
+          const data = await res.json();
+          const serverTodos = (data as Record<string, unknown>[]).map(deserializeTodo);
+          setTodos(serverTodos);
+          saveToStorage(serverTodos);
+          setIsOnline(true);
+        } else {
+          throw new Error('Fetch failed');
+        }
+      } catch (error) {
+        console.warn('Modalità offline, uso localStorage:', error);
+        setIsOnline(false);
+      } finally {
+        setLoading(false);
+      }
     }
+    fetchTodos();
+  }, []);
 
-    // Modalità cloud (autenticato)
-    setLoading(true);
-    const q = query(
-      collection(db, TODOS_COLLECTION),
-      where('userId', '==', userId)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const loadedTodos = snapshot.docs.map(firestoreToTodo);
-      setTodos(loadedTodos);
-      setLoading(false);
-    }, (error) => {
-      console.error('Errore nel caricamento dei todos:', error);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [userId]);
-
-  // Salva su localStorage quando non autenticato
+  // Salva su localStorage quando i todos cambiano
   useEffect(() => {
-    if (!userId && !loading) {
-      saveTodosToStorage(todos);
+    if (!loading) {
+      saveToStorage(todos);
     }
-  }, [todos, userId, loading]);
+  }, [todos, loading]);
+
+  const syncToServer = useCallback(async (newTodos: Todo[]) => {
+    try {
+      await fetch(`${API_BASE}/todos-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync',
+          data: { todos: newTodos.map(serializeTodo) }
+        })
+      });
+      setIsOnline(true);
+    } catch {
+      setIsOnline(false);
+    }
+  }, []);
 
   const addTodo = useCallback(async (
     text: string,
@@ -138,129 +130,59 @@ export function useTodos(userId?: string | null) {
       order: Date.now()
     };
 
-    if (!userId) {
-      // Modalità locale
-      setTodos(prev => [newTodo, ...prev]);
-      return newTodo;
-    }
+    setTodos(prev => {
+      const updated = [newTodo, ...prev];
+      syncToServer(updated);
+      return updated;
+    });
 
-    // Modalità cloud
-    try {
-      const docRef = await addDoc(collection(db, TODOS_COLLECTION), todoToFirestore(newTodo, userId));
-      newTodo.id = docRef.id;
-    } catch (error) {
-      console.error('Errore nell\'aggiunta del todo:', error);
-    }
     return newTodo;
-  }, [userId]);
+  }, [syncToServer]);
 
   const toggleTodo = useCallback(async (id: string) => {
-    const todo = todos.find(t => t.id === id);
-    if (!todo) return;
-
-    if (!userId) {
-      // Modalità locale
-      setTodos(prev =>
-        prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t)
+    setTodos(prev => {
+      const updated = prev.map(t =>
+        t.id === id ? { ...t, completed: !t.completed } : t
       );
-      return;
-    }
-
-    // Modalità cloud
-    try {
-      await updateDoc(doc(db, TODOS_COLLECTION, id), {
-        completed: !todo.completed
-      });
-    } catch (error) {
-      console.error('Errore nel toggle del todo:', error);
-    }
-  }, [userId, todos]);
+      syncToServer(updated);
+      return updated;
+    });
+  }, [syncToServer]);
 
   const deleteTodo = useCallback(async (id: string) => {
-    if (!userId) {
-      // Modalità locale
-      setTodos(prev => prev.filter(todo => todo.id !== id));
-      return;
-    }
-
-    // Modalità cloud
-    try {
-      await deleteDoc(doc(db, TODOS_COLLECTION, id));
-    } catch (error) {
-      console.error('Errore nell\'eliminazione del todo:', error);
-    }
-  }, [userId]);
+    setTodos(prev => {
+      const updated = prev.filter(t => t.id !== id);
+      syncToServer(updated);
+      return updated;
+    });
+  }, [syncToServer]);
 
   const updateTodo = useCallback(async (id: string, updates: Partial<Todo>) => {
-    if (!userId) {
-      // Modalità locale
-      setTodos(prev =>
-        prev.map(todo => todo.id === id ? { ...todo, ...updates } : todo)
-      );
-      return;
-    }
-
-    // Modalità cloud
-    try {
-      const updateData: Record<string, unknown> = {};
-      if (updates.text !== undefined) updateData.text = updates.text;
-      if (updates.completed !== undefined) updateData.completed = updates.completed;
-      if (updates.dueDate !== undefined) updateData.dueDate = updates.dueDate ? Timestamp.fromDate(updates.dueDate) : null;
-      if (updates.hasTime !== undefined) updateData.hasTime = updates.hasTime;
-      if (updates.priority !== undefined) updateData.priority = updates.priority;
-      if (updates.originalInput !== undefined) updateData.originalInput = updates.originalInput;
-      if (updates.order !== undefined) updateData.order = updates.order;
-
-      await updateDoc(doc(db, TODOS_COLLECTION, id), updateData);
-    } catch (error) {
-      console.error('Errore nell\'aggiornamento del todo:', error);
-    }
-  }, [userId]);
+    setTodos(prev => {
+      const updated = prev.map(t => t.id === id ? { ...t, ...updates } : t);
+      syncToServer(updated);
+      return updated;
+    });
+  }, [syncToServer]);
 
   const clearCompleted = useCallback(async () => {
-    const completedTodos = todos.filter(t => t.completed);
-
-    if (!userId) {
-      // Modalità locale
-      setTodos(prev => prev.filter(todo => !todo.completed));
-      return;
-    }
-
-    // Modalità cloud - usa batch per eliminare tutti
-    try {
-      const batch = writeBatch(db);
-      completedTodos.forEach(todo => {
-        batch.delete(doc(db, TODOS_COLLECTION, todo.id));
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error('Errore nella pulizia dei completati:', error);
-    }
-  }, [userId, todos]);
+    setTodos(prev => {
+      const updated = prev.filter(t => !t.completed);
+      syncToServer(updated);
+      return updated;
+    });
+  }, [syncToServer]);
 
   const reorderTodos = useCallback(async (fromIndex: number, toIndex: number) => {
-    const reordered = [...todos];
-    const [removed] = reordered.splice(fromIndex, 1);
-    reordered.splice(toIndex, 0, removed);
-    const updatedTodos = reordered.map((todo, index) => ({ ...todo, order: index }));
-
-    if (!userId) {
-      // Modalità locale
-      setTodos(updatedTodos);
-      return;
-    }
-
-    // Modalità cloud - aggiorna gli ordini con batch
-    try {
-      const batch = writeBatch(db);
-      updatedTodos.forEach((todo, index) => {
-        batch.update(doc(db, TODOS_COLLECTION, todo.id), { order: index });
-      });
-      await batch.commit();
-    } catch (error) {
-      console.error('Errore nel riordinamento:', error);
-    }
-  }, [userId, todos]);
+    setTodos(prev => {
+      const reordered = [...prev];
+      const [removed] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, removed);
+      const updated = reordered.map((todo, index) => ({ ...todo, order: index }));
+      syncToServer(updated);
+      return updated;
+    });
+  }, [syncToServer]);
 
   // Ordina i todos (non completati prima, poi per ordine)
   const sortedTodos = [...todos].sort((a, b) => {
@@ -279,6 +201,7 @@ export function useTodos(userId?: string | null) {
   return {
     todos: sortedTodos,
     loading,
+    isOnline,
     addTodo,
     toggleTodo,
     deleteTodo,

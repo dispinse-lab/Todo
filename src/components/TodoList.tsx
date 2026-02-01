@@ -15,7 +15,6 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useAuth } from '../contexts/AuthContext';
 import { useTodos } from '../hooks/useTodos';
 import { VoiceInput } from './VoiceInput';
 import { TodoItem } from './TodoItem';
@@ -59,11 +58,10 @@ function SortableTodoItem({ todo, onToggle, onDelete, onUpdate }: {
 }
 
 export function TodoList() {
-  const { user, loading: authLoading, signInWithGoogle, signOut } = useAuth();
-
   const {
     todos,
-    loading: todosLoading,
+    loading,
+    isOnline,
     addTodo,
     toggleTodo,
     deleteTodo,
@@ -72,14 +70,14 @@ export function TodoList() {
     reorderTodos,
     pendingCount,
     completedCount
-  } = useTodos(user?.uid);
+  } = useTodos();
 
   const [filter, setFilter] = useState<FilterType>('all');
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 8, // Deve trascinare almeno 8px prima di attivare
+        distance: 8,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -103,89 +101,44 @@ export function TodoList() {
     }
   };
 
-  const handleSignIn = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      console.error('Errore login:', error);
-    }
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Errore logout:', error);
-    }
-  };
-
   return (
     <div className="todo-list-container">
       <header className="app-header">
-        <div className="header-top">
-          <h1>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-              <line x1="12" y1="19" x2="12" y2="23" />
-              <line x1="8" y1="23" x2="16" y2="23" />
-            </svg>
-            Voice Todo
-          </h1>
-          <div className="auth-section">
-            {authLoading ? (
-              <div className="auth-loading">
-                <div className="spinner-small"></div>
-              </div>
-            ) : user ? (
-              <div className="user-info">
-                {user.photoURL && (
-                  <img
-                    src={user.photoURL}
-                    alt={user.displayName || 'User'}
-                    className="user-avatar"
-                  />
-                )}
-                <button onClick={handleSignOut} className="auth-btn logout-btn">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                </button>
-              </div>
-            ) : (
-              <button onClick={handleSignIn} className="auth-btn login-btn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                  <polyline points="10 17 15 12 10 7" />
-                  <line x1="15" y1="12" x2="3" y2="12" />
-                </svg>
-                Accedi
-              </button>
-            )}
-          </div>
-        </div>
+        <h1>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+          Voice Todo
+        </h1>
         <p className="app-subtitle">
-          {user ? (
+          {isOnline ? (
             <>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sync-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sync-icon synced">
                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
               </svg>
-              Sincronizzato su cloud
+              Sincronizzato
             </>
           ) : (
-            'Accedi per sincronizzare tra dispositivi'
+            <>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="sync-icon offline">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+              </svg>
+              Offline
+            </>
           )}
         </p>
       </header>
 
       <VoiceInput onAddTodo={addTodo} />
 
-      {todosLoading ? (
+      {loading ? (
         <div className="loading-state">
           <div className="spinner"></div>
-          <p>Caricamento todos...</p>
+          <p>Caricamento...</p>
         </div>
       ) : (
         <>
