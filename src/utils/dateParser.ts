@@ -121,6 +121,7 @@ export function parseInput(input: string): ParsedInput {
   let text = input.toLowerCase().trim();
   let date: Date | null = null;
   let remainingText = text;
+  let hasTime = false; // Track se è stato specificato un orario
 
   // Prima estrai la priorità
   const { priority, cleanedText } = parsePriority(text);
@@ -149,6 +150,7 @@ export function parseInput(input: string): ParsedInput {
   if (timeMatch) {
     hours = parseInt(timeMatch[1], 10);
     minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    hasTime = true;
     remainingText = remainingText.replace(timeMatch[0], '').trim();
   }
 
@@ -173,6 +175,7 @@ export function parseInput(input: string): ParsedInput {
     if (hours === null) {
       hours = 20;
       minutes = 0;
+      hasTime = true; // "stasera" implica un orario
     }
     remainingText = remainingText.replace(/\bstasera\b/gi, '').trim();
   }
@@ -182,6 +185,7 @@ export function parseInput(input: string): ParsedInput {
     if (hours === null) {
       hours = 9;
       minutes = 0;
+      hasTime = true; // "stamattina" implica un orario
     }
     remainingText = remainingText.replace(/\bstamattina\b/gi, '').trim();
   }
@@ -191,6 +195,7 @@ export function parseInput(input: string): ParsedInput {
     if (hours === null) {
       hours = 15;
       minutes = 0;
+      hasTime = true; // "questo pomeriggio" implica un orario
     }
     remainingText = remainingText.replace(/\bquesto\s+pomeriggio\b/gi, '').trim();
   }
@@ -210,6 +215,7 @@ export function parseInput(input: string): ParsedInput {
     } else {
       date = addMinutes(now, amount);
     }
+    hasTime = true; // tempo relativo specifica un orario esatto
     remainingText = remainingText.replace(match[0], '').trim();
   }
   // Controlla giorno relativo (fra X giorni)
@@ -272,6 +278,9 @@ export function parseInput(input: string): ParsedInput {
     if (date < now) {
       date = addDays(date, 1);
     }
+  } else if (date && !hasTime) {
+    // Se c'è una data ma nessun orario specificato, imposta a mezzanotte
+    date = setTime(date, 0, 0);
   }
 
   // Pulisci il testo rimanente
@@ -288,12 +297,13 @@ export function parseInput(input: string): ParsedInput {
 
   return {
     date,
+    hasTime,
     priority,
     remainingText
   };
 }
 
-export function formatDateTime(date: Date): string {
+export function formatDateTime(date: Date, showTime: boolean = true): string {
   const now = new Date();
   const tomorrow = addDays(now, 1);
   const dayAfterTomorrow = addDays(now, 2);
@@ -302,22 +312,25 @@ export function formatDateTime(date: Date): string {
   const isTomorrow = date.toDateString() === tomorrow.toDateString();
   const isDayAfterTomorrow = date.toDateString() === dayAfterTomorrow.toDateString();
 
-  const timeStr = date.toLocaleTimeString('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  // Non mostrare l'orario se è mezzanotte (indica data generica senza orario)
+  const isMidnight = date.getHours() === 0 && date.getMinutes() === 0;
+  const shouldShowTime = showTime && !isMidnight;
+
+  const timeStr = shouldShowTime
+    ? ` alle ${date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+    : '';
 
   if (isToday) {
-    return `Oggi alle ${timeStr}`;
+    return `Oggi${timeStr}`;
   } else if (isTomorrow) {
-    return `Domani alle ${timeStr}`;
+    return `Domani${timeStr}`;
   } else if (isDayAfterTomorrow) {
-    return `Dopodomani alle ${timeStr}`;
+    return `Dopodomani${timeStr}`;
   } else {
     const dayName = GIORNI_SETTIMANA[date.getDay()];
     const day = date.getDate();
     const month = MESI[date.getMonth()];
-    return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${day} ${month} alle ${timeStr}`;
+    return `${dayName.charAt(0).toUpperCase() + dayName.slice(1)} ${day} ${month}${timeStr}`;
   }
 }
 

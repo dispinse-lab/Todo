@@ -3,14 +3,6 @@ import type { Todo, Priority } from '../types';
 
 const STORAGE_KEY = 'voice-todos';
 
-const PRIORITY_ORDER: Record<Priority, number> = {
-  'urgent': 0,
-  'high': 1,
-  'medium': 2,
-  'low': 3,
-  'none': 4
-};
-
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2);
 }
@@ -52,16 +44,19 @@ export function useTodos() {
     text: string,
     dueDate?: Date,
     priority: Priority = 'none',
-    originalInput?: string
+    originalInput?: string,
+    hasTime?: boolean
   ) => {
     const newTodo: Todo = {
       id: generateId(),
       text,
       completed: false,
       dueDate,
+      hasTime,
       priority,
       createdAt: new Date(),
-      originalInput: originalInput || text
+      originalInput: originalInput || text,
+      order: Date.now() // ordine iniziale basato sul timestamp
     };
     setTodos(prev => [newTodo, ...prev]);
     return newTodo;
@@ -91,24 +86,27 @@ export function useTodos() {
     setTodos(prev => prev.filter(todo => !todo.completed));
   }, []);
 
-  // Ordina: non completati prima, poi per priorità, poi per data
+  const reorderTodos = useCallback((fromIndex: number, toIndex: number) => {
+    setTodos(prev => {
+      const result = [...prev];
+      const [removed] = result.splice(fromIndex, 1);
+      result.splice(toIndex, 0, removed);
+      // Aggiorna l'ordine per tutti i task
+      return result.map((todo, index) => ({ ...todo, order: index }));
+    });
+  }, []);
+
+  // Mantiene l'ordine manuale (i completati vanno in fondo)
   const sortedTodos = [...todos].sort((a, b) => {
     // Prima i non completati
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1;
     }
-    // Poi per priorità (urgent prima)
-    const priorityDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
-    if (priorityDiff !== 0) {
-      return priorityDiff;
+    // Poi per ordine manuale se presente
+    if (a.order !== undefined && b.order !== undefined) {
+      return a.order - b.order;
     }
-    // Poi per data di scadenza (se presente)
-    if (a.dueDate && b.dueDate) {
-      return a.dueDate.getTime() - b.dueDate.getTime();
-    }
-    if (a.dueDate) return -1;
-    if (b.dueDate) return 1;
-    // Infine per data di creazione (più recenti prima)
+    // Fallback: per data di creazione (più recenti prima)
     return b.createdAt.getTime() - a.createdAt.getTime();
   });
 
@@ -122,6 +120,7 @@ export function useTodos() {
     deleteTodo,
     updateTodo,
     clearCompleted,
+    reorderTodos,
     pendingCount,
     completedCount
   };

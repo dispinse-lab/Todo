@@ -7,18 +7,44 @@ interface TodoItemProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Todo>) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement>;
 }
 
 const PRIORITIES: Priority[] = ['none', 'low', 'medium', 'high', 'urgent'];
 
-export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) {
+// Helper per convertire Date in formato date
+function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function TodoItem({ todo, onToggle, onDelete, onUpdate, dragHandleProps }: TodoItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(todo.text);
+  const [editDate, setEditDate] = useState(todo.dueDate ? toDateOnly(todo.dueDate) : '');
+  const [editTime, setEditTime] = useState(
+    todo.dueDate && todo.hasTime
+      ? todo.dueDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false })
+      : ''
+  );
   const [showPriorityMenu, setShowPriorityMenu] = useState(false);
 
   const overdue = todo.dueDate && !todo.completed && isOverdue(todo.dueDate);
   const priorityColor = getPriorityColor(todo.priority);
   const priorityLabel = getPriorityLabel(todo.priority);
+
+  const handleStartEdit = () => {
+    setEditText(todo.text);
+    setEditDate(todo.dueDate ? toDateOnly(todo.dueDate) : '');
+    setEditTime(
+      todo.dueDate && todo.hasTime
+        ? todo.dueDate.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', hour12: false })
+        : ''
+    );
+    setIsEditing(true);
+  };
 
   const handleSaveEdit = () => {
     if (editText.trim()) {
@@ -26,11 +52,31 @@ export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) 
       const updates: Partial<Todo> = {
         text: parsed.remainingText || editText.trim()
       };
-      // Aggiorna data se riconosciuta
-      if (parsed.date) {
+
+      // Se l'utente ha specificato una data nei campi, usa quella
+      if (editDate) {
+        const [year, month, day] = editDate.split('-').map(Number);
+        const newDate = new Date(year, month - 1, day);
+        if (editTime) {
+          const [hours, minutes] = editTime.split(':').map(Number);
+          newDate.setHours(hours, minutes, 0, 0);
+          updates.hasTime = true;
+        } else {
+          newDate.setHours(0, 0, 0, 0);
+          updates.hasTime = false;
+        }
+        updates.dueDate = newDate;
+      } else if (parsed.date) {
+        // Usa la data dal parsing del testo
         updates.dueDate = parsed.date;
+        updates.hasTime = parsed.hasTime;
+      } else {
+        // Rimuovi la data se l'utente ha cancellato
+        updates.dueDate = undefined;
+        updates.hasTime = false;
       }
-      // Aggiorna priorità se riconosciuta
+
+      // Aggiorna priorità se riconosciuta nel testo
       if (parsed.priority !== 'none') {
         updates.priority = parsed.priority;
       }
@@ -55,9 +101,21 @@ export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) 
 
   return (
     <div
-      className={`todo-item ${todo.completed ? 'completed' : ''} ${overdue ? 'overdue' : ''}`}
+      className={`todo-item ${todo.completed ? 'completed' : ''} ${overdue ? 'overdue' : ''} ${isEditing ? 'editing' : ''}`}
       style={{ borderLeftColor: priorityColor, borderLeftWidth: todo.priority !== 'none' ? '4px' : '0' }}
     >
+      {/* Drag handle */}
+      <div className="drag-handle" {...dragHandleProps}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="9" cy="5" r="1" fill="currentColor" />
+          <circle cx="9" cy="12" r="1" fill="currentColor" />
+          <circle cx="9" cy="19" r="1" fill="currentColor" />
+          <circle cx="15" cy="5" r="1" fill="currentColor" />
+          <circle cx="15" cy="12" r="1" fill="currentColor" />
+          <circle cx="15" cy="19" r="1" fill="currentColor" />
+        </svg>
+      </div>
+
       <button
         className="todo-checkbox"
         onClick={() => onToggle(todo.id)}
@@ -72,45 +130,81 @@ export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) 
 
       <div className="todo-content">
         {isEditing ? (
-          <input
-            type="text"
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onBlur={handleSaveEdit}
-            onKeyDown={handleKeyDown}
-            className="todo-edit-input"
-            autoFocus
-          />
+          <div className="edit-form">
+            <input
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="todo-edit-input"
+              placeholder="Testo del task"
+              autoFocus
+            />
+            <div className="edit-datetime">
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="edit-date-input"
+              />
+              <input
+                type="time"
+                value={editTime}
+                onChange={(e) => setEditTime(e.target.value)}
+                className="edit-time-input"
+                placeholder="--:--"
+              />
+              {(editDate || editTime) && (
+                <button
+                  type="button"
+                  className="clear-date-btn"
+                  onClick={() => { setEditDate(''); setEditTime(''); }}
+                  title="Rimuovi data/ora"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div className="edit-actions">
+              <button className="edit-save-btn" onClick={handleSaveEdit}>Salva</button>
+              <button className="edit-cancel-btn" onClick={() => setIsEditing(false)}>Annulla</button>
+            </div>
+          </div>
         ) : (
           <span
             className="todo-text"
-            onDoubleClick={() => setIsEditing(true)}
+            onDoubleClick={handleStartEdit}
             title="Doppio click per modificare"
           >
             {todo.text}
           </span>
         )}
 
-        <div className="todo-meta">
-          {todo.dueDate && (
-            <span className={`todo-date ${overdue ? 'overdue' : ''}`}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              {formatDateTime(todo.dueDate)}
-            </span>
-          )}
+        {!isEditing && (
+          <div className="todo-meta">
+            {todo.dueDate && (
+              <span className={`todo-date ${overdue ? 'overdue' : ''}`}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                {formatDateTime(todo.dueDate, todo.hasTime)}
+              </span>
+            )}
 
-          {todo.priority !== 'none' && (
-            <span
-              className="todo-priority"
-              style={{ backgroundColor: priorityColor + '20', color: priorityColor }}
-            >
-              {priorityLabel}
-            </span>
-          )}
-        </div>
+            {todo.priority !== 'none' && (
+              <span
+                className="todo-priority"
+                style={{ backgroundColor: priorityColor + '20', color: priorityColor }}
+              >
+                {priorityLabel}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="todo-actions">
@@ -150,7 +244,7 @@ export function TodoItem({ todo, onToggle, onDelete, onUpdate }: TodoItemProps) 
         {/* Edit button */}
         <button
           className="todo-action-btn"
-          onClick={() => setIsEditing(true)}
+          onClick={handleStartEdit}
           aria-label="Modifica task"
           title="Modifica"
         >

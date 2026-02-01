@@ -640,10 +640,54 @@
   font-weight: 600;
 }
 
+/* Drag Handle */
+.drag-handle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.todo-item:hover .drag-handle {
+  opacity: 1;
+}
+
+.drag-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Todo Item in editing mode */
+.todo-item.editing {
+  padding: 1rem;
+}
+
+.todo-item.editing .todo-content {
+  width: 100%;
+}
+
+/* Edit Form */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
 /* Todo Edit Input */
 .todo-edit-input {
   width: 100%;
-  padding: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--primary);
   background: var(--bg-input);
   color: var(--text);
@@ -654,6 +698,99 @@
 
 .todo-edit-input:focus {
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+/* Edit DateTime Row */
+.edit-datetime {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-date-input,
+.edit-time-input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text);
+  font-size: 0.9rem;
+  border-radius: 6px;
+  outline: none;
+}
+
+.edit-date-input:focus,
+.edit-time-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+}
+
+.edit-date-input {
+  flex: 1;
+}
+
+.edit-time-input {
+  width: 100px;
+}
+
+.clear-date-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.clear-date-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+}
+
+.clear-date-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Edit Actions */
+.edit-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.edit-save-btn,
+.edit-cancel-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-save-btn {
+  background: var(--primary);
+  color: white;
+}
+
+.edit-save-btn:hover {
+  background: var(--primary-dark);
+}
+
+.edit-cancel-btn {
+  background: var(--bg-input);
+  color: var(--text-muted);
+}
+
+.edit-cancel-btn:hover {
+  background: var(--border);
+  color: var(--text);
 }
 
 /* Responsive */
@@ -702,5 +839,32 @@
   .priority-menu {
     right: auto;
     left: 0;
+  }
+
+  .drag-handle {
+    opacity: 1;
+  }
+
+  .edit-datetime {
+    flex-wrap: wrap;
+  }
+
+  .edit-date-input,
+  .edit-time-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .edit-time-input {
+    width: auto;
+  }
+}
+
+/* Touch support for drag handle */
+@media (pointer: coarse) {
+  .drag-handle {
+    opacity: 1;
+    width: 32px;
+    height: 32px;
   }
 }

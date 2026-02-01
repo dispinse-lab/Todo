@@ -4,7 +4,7 @@ import { parseInput, getPriorityLabel, getPriorityColor } from '../utils/datePar
 import type { Priority } from '../types';
 
 interface VoiceInputProps {
-  onAddTodo: (text: string, dueDate?: Date, priority?: Priority, originalInput?: string) => void;
+  onAddTodo: (text: string, dueDate?: Date, priority?: Priority, originalInput?: string, hasTime?: boolean) => void;
 }
 
 export function VoiceInput({ onAddTodo }: VoiceInputProps) {
@@ -48,7 +48,8 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
         result.remainingText || textToSubmit.trim(),
         result.date || undefined,
         result.priority,
-        textToSubmit
+        textToSubmit,
+        result.hasTime
       );
       setInputText('');
       resetTranscript();
@@ -168,10 +169,10 @@ export function VoiceInput({ onAddTodo }: VoiceInputProps) {
                   weekday: 'short',
                   day: 'numeric',
                   month: 'short'
-                })} {parsed.date.toLocaleTimeString('it-IT', {
+                })}{parsed.hasTime && ` ${parsed.date.toLocaleTimeString('it-IT', {
                   hour: '2-digit',
                   minute: '2-digit'
-                })}
+                })}`}
               </span>
             )}
           </div>

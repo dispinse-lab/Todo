@@ -1,9 +1,61 @@
 import { useState } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useTodos } from '../hooks/useTodos';
 import { VoiceInput } from './VoiceInput';
 import { TodoItem } from './TodoItem';
+import type { Todo } from '../types';
 
 type FilterType = 'all' | 'pending' | 'completed';
+
+// Wrapper per rendere ogni TodoItem sortable
+function SortableTodoItem({ todo, onToggle, onDelete, onUpdate }: {
+  todo: Todo;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Todo>) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: todo.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TodoItem
+        todo={todo}
+        onToggle={onToggle}
+        onDelete={onDelete}
+        onUpdate={onUpdate}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
+}
 
 export function TodoList() {
   const {
@@ -13,17 +65,39 @@ export function TodoList() {
     deleteTodo,
     updateTodo,
     clearCompleted,
+    reorderTodos,
     pendingCount,
     completedCount
   } = useTodos();
 
   const [filter, setFilter] = useState<FilterType>('all');
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Deve trascinare almeno 8px prima di attivare
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   const filteredTodos = todos.filter(todo => {
     if (filter === 'pending') return !todo.completed;
     if (filter === 'completed') return todo.completed;
     return true;
   });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = todos.findIndex(t => t.id === active.id);
+      const newIndex = todos.findIndex(t => t.id === over.id);
+      reorderTodos(oldIndex, newIndex);
+    }
+  };
 
   return (
     <div className="todo-list-container">
@@ -108,15 +182,26 @@ export function TodoList() {
             )}
           </div>
         ) : (
-          filteredTodos.map(todo => (
-            <TodoItem
-              key={todo.id}
-              todo={todo}
-              onToggle={toggleTodo}
-              onDelete={deleteTodo}
-              onUpdate={updateTodo}
-            />
-          ))
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={filteredTodos.map(t => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {filteredTodos.map(todo => (
+                <SortableTodoItem
+                  key={todo.id}
+                  todo={todo}
+                  onToggle={toggleTodo}
+                  onDelete={deleteTodo}
+                  onUpdate={updateTodo}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
