@@ -868,3 +868,76 @@
     height: 32px;
   }
 }
+
+/* Header Top Row */
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  position: relative;
+}
+
+/* Sync Status */
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.sync-status svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.sync-status--offline {
+  background: rgba(100, 116, 139, 0.2);
+  color: var(--text-muted);
+}
+
+.sync-status--syncing {
+  background: rgba(99, 102, 241, 0.2);
+  color: var(--primary-light);
+}
+
+.sync-status--synced {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.sync-status--error {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger);
+}
+
+/* Spin animation for syncing */
+.sync-status .spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive sync status */
+@media (max-width: 480px) {
+  .header-top {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .sync-status {
+    position: static;
+    transform: none;
+  }
+}
