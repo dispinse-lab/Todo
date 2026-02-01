@@ -949,8 +949,15 @@
 /* Touch support for drag handle */
 @media (pointer: coarse) {
   .drag-handle {
-    opacity: 1;
+    opacity: 1 !important;
     width: 32px;
     height: 32px;
+  }
+}
+
+/* Ensure drag handle always visible on mobile */
+@media (max-width: 600px) {
+  .drag-handle {
+    opacity: 1 !important;
   }
 }
