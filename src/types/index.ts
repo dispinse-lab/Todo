@@ -18,3 +18,17 @@ export interface ParsedInput {
   priority: Priority;
   remainingText: string;
 }
+
+// Tipo per Firestore (date come Timestamp)
+export interface TodoFirestore {
+  id: string;
+  text: string;
+  completed: boolean;
+  dueDate?: Date | null;
+  hasTime?: boolean;
+  priority: Priority;
+  createdAt: Date;
+  originalInput: string;
+  order?: number;
+  userId: string;
+}
